@@ -1,0 +1,23 @@
+[bootstrap]
+main_collection = /main/main.collectionc
+
+[script]
+shared_state = 1
+
+[display]
+width = 700
+height = 1515
+
+[android]
+input_method = HiddenInputField
+
+[project]
+title = Bezier Track
+dependencies = 
+
+[render]
+clear_color_red = 1.0
+clear_color_green = 1.0
+clear_color_blue = 1.0
+clear_color_alpha = 1.0
+
