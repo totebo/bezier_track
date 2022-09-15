@@ -7,6 +7,7 @@ shared_state = 1
 [display]
 width = 700
 height = 1515
+high_dpi = 1
 
 [android]
 input_method = HiddenInputField
@@ -20,4 +21,10 @@ clear_color_red = 1.0
 clear_color_green = 1.0
 clear_color_blue = 1.0
 clear_color_alpha = 1.0
+
+[html5]
+scale_mode = stretch
+show_made_with_defold = 0
+show_fullscreen_button = 0
+show_console_banner = 0
 
