@@ -3,11 +3,11 @@ local bezier = require "main.bezier"
 local MAX_NODES = 1024
 
 local waypoints = {}
-local waypoints_control_positions = {}
 local nodes = {}
 local node_count = 0
 local waypoint_count = 0
-
+local previous_waypoint_position
+local control_point_distance_fraction
 
 local function node_was_added(node)
 
@@ -185,54 +185,37 @@ local function get_waypoint_control_positions(p1, p2, p3)
 	-- Average direction angle
 	local v1 = p2-p1
 	local v2 = p2-p3
-
-
 	local v1_length = vmath.length(v1)
 	local v2_length = vmath.length(v2)
-
-	--[[
-	if v1_length == 0 or v2_length == 0 then
-		local control_positions = {
-			c_next = p2,
-			c_previous = p2,
-		}
-		return control_positions
-	end
-	--]]
-
 	local nv1 = vmath.normalize(v1)
 	local nv2 = vmath.normalize(v2)
-
 	local direction_vector = vmath.normalize(nv1+nv2)
 	local direction_radians = math.atan2(direction_vector.y, direction_vector.x)
 	local direction_degrees = math.deg(direction_radians)
 
-	-- Max control point distance
-
-	local max_control_point_distance
+	-- Control point distance
+	--local control_point_distance_fraction = 
+	local control_point_distance
 	if v1_length < v2_length then
-		max_control_point_distance = v1_length
+		control_point_distance = v1_length * control_point_distance_fraction
 	else
-		max_control_point_distance = v2_length 
+		control_point_distance = v2_length * control_point_distance_fraction
 	end
 
-	local control_point_distance = max_control_point_distance * 0.35
-
-	if control_point_distance < 50 then
-		--control_point_distance = 50
-	end
-	
+	-- Control point a
 	local ca_degrees = direction_degrees+90
 	local ca_radians = math.rad(ca_degrees)
 	local ca_x = math.cos(ca_radians) * control_point_distance
 	local ca_y = math.sin(ca_radians) * control_point_distance
 	local ca = p2 + vmath.vector3(ca_x, ca_y, 0)
 
-	local cb_radians = math.rad(normalise_euler(ca_degrees-180))
+	-- Control point b
+	local cb_radians = math.rad(ca_degrees-180)
 	local cb_x = math.cos(cb_radians) * control_point_distance
 	local cb_y = math.sin(cb_radians) * control_point_distance
 	local cb = p2 + vmath.vector3(cb_x, cb_y, 0)
 
+	-- Choose which control point is for the previous segment and which is for the next segment
 	local c_next
 	local c_previous
 	local v1_radians = math.atan2(v1.y, v1.x)
@@ -249,14 +232,11 @@ local function get_waypoint_control_positions(p1, p2, p3)
 		c_next = cb
 		c_previous = ca
 	end
-	
+
 	local control_positions = {
 		c_next = c_next,
 		c_previous = c_previous,
 	}
-
-
-	add_control_points(c_previous, c_next)
 
 	return control_positions
 
@@ -265,44 +245,54 @@ end
 
 local function add_waypoint(position)
 
-	waypoint_count = waypoint_count + 1
-	
-	add_waypoint_node(position)
+	if position ~= previous_waypoint_position then
 
-	-- Store waypoint
-	local waypoint = {
-		position = position,
-	}
-	table.insert(waypoints, waypoint)
+		waypoint_count = waypoint_count + 1
+		
+		add_waypoint_node(position)
 
-	if #waypoints == 1 then
-
-		waypoint.control_positions = {
-			c_next = waypoint.position,
-			c_previous = waypoint.position,
+		-- Store waypoint
+		local waypoint = {
+			position = position,
 		}
+		table.insert(waypoints, waypoint)
 
-	elseif #waypoints >= 3 then
+		if #waypoints == 1 then
 
-		-- Add control positions to waypoint
-		local waypoint1 = waypoints[#waypoints-2]
-		local waypoint2 = waypoints[#waypoints-1]
-		local waypoint3 = waypoints[#waypoints]
-		
-		local p1 = waypoint1.position
-		local p2 = waypoint2.position
-		local p3 = waypoint3.position
-		waypoint2.control_positions = get_waypoint_control_positions(p1, p2, p3)
-		
-		local c1 = waypoint1.control_positions.c_next
-		local c2 = waypoint2.control_positions.c_previous
-		
-		local curve = bezier.create_cubic_curve(p1, c1, c2, p2)
-		for i=1, #curve do
-			local position = curve[i]
-			add_path_node(position)
+			waypoint.control_positions = {
+				c_next = waypoint.position,
+				c_previous = waypoint.position,
+			}
+
+		elseif #waypoints >= 3 then
+
+			-- Add control positions to waypoint
+			local waypoint1 = waypoints[#waypoints-2]
+			local waypoint2 = waypoints[#waypoints-1]
+			local waypoint3 = waypoints[#waypoints]
+			
+			local p1 = waypoint1.position
+			local p2 = waypoint2.position
+			local p3 = waypoint3.position
+			waypoint2.control_positions = get_waypoint_control_positions(p1, p2, p3)
+
+			-- Visualise
+			add_control_points(waypoint2.control_positions.c_previous,  waypoint2.control_positions.c_next)
+
+			local c1 = waypoint1.control_positions.c_next
+			local c2 = waypoint2.control_positions.c_previous
+
+
+			
+			local curve = bezier.create_cubic_curve(p1, c1, c2, p2)
+			for i=1, #curve do
+				local position = curve[i]
+				add_path_node(position)
+			end
+
 		end
 
+		previous_waypoint_position = position
 	end
 
 end
@@ -315,21 +305,28 @@ local function on_press(position)
 end
 
 
-local function calculate_control_positions()
+local function clear()
 
+	for i=1, #nodes do
+		local nodes_to_delete = table.remove(nodes, 1)
+		for i=1, #nodes_to_delete do
+			gui.delete_node(nodes_to_delete[i])
+		end
+	end
 	
+	previous_waypoint_position = nil
+	node_count = 0
+	waypoint_count = 0
+	waypoints = {}
 	
 end
 
 function init(self)
-
-	--[[
-	local position = vmath.vector3(350, 100, 0)
-	add_waypoint(position)
-
-	local position = vmath.vector3(350, 200, 0)
-	add_waypoint(position)
---]]
+	imgui.set_ini_filename()
+	local scale = 3
+	imgui.scale_all_sizes(scale)
+	imgui.set_global_font_scale(scale)
+	control_point_distance_fraction = 0.5
 	msg.post("#", "acquire_input_focus")
 
 end
@@ -341,9 +338,21 @@ function final(self)
 end
 
 function update(self, dt)
-	-- Add update code here
-	-- Learn more: https://defold.com/manuals/script/
-	-- Remove this function if not needed
+
+	local flags = imgui.WINDOWFLAGS_NORESIZE + imgui.WINDOWFLAGS_ALWAYSAUTORESIZE + imgui.WINDOWFLAGS_NOCOLLAPSE + imgui.WINDOWFLAGS_NOMOVE
+	imgui.begin_window("Bezier tracks!", false, flags)
+
+	local changed, p = imgui.slider_float("Curve sharpness", control_point_distance_fraction, 0, 1)
+	if changed then
+		control_point_distance_fraction = p
+		clear()
+	end
+	if imgui.button("Clear") then
+		clear()
+	end
+	imgui.end_window()
+
+
 end
 
 function on_message(self, message_id, message, sender)
@@ -354,7 +363,7 @@ end
 
 function on_input(self, action_id, action)
 
-	if action.pressed then
+	if action.pressed and action.y < 1515-100 then
 		--local position = camera.world_to_screen(nil, vmath.vector3(action.x, action.y, 0), gui.ADJUST_FIT)
 		--local position = camera.screen_to_world(nil, vmath.vector3(action.screen_x, action.screen_y, 0))
 		--local position = vmath.vector3(action.screen_x, action.screen_y, 0)

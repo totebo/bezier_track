@@ -14,7 +14,7 @@ input_method = HiddenInputField
 
 [project]
 title = Bezier Track
-dependencies = 
+dependencies#0 = https://github.com/britzl/extension-imgui/archive/master.zip
 
 [render]
 clear_color_red = 1.0
@@ -27,4 +27,7 @@ scale_mode = stretch
 show_made_with_defold = 0
 show_fullscreen_button = 0
 show_console_banner = 0
+
+[input]
+game_binding = /imgui/bindings/imgui.input_bindingc
 
